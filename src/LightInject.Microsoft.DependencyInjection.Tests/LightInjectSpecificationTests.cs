@@ -11,4 +11,12 @@
             return serviceCollection.CreateLightInjectServiceProvider(new ContainerOptions() { EnableCurrentScope = false });
         }
     }
+    
+    public class KeyedLightInjectSpecificationTests : KeyedDependencyInjectionSpecificationTests
+    {
+        protected override IServiceProvider CreateServiceProvider(IServiceCollection serviceCollection)
+        {
+            return serviceCollection.CreateLightInjectServiceProvider(new ContainerOptions() { EnableCurrentScope = false });
+        }
+    }
 }
