@@ -1,4 +1,4 @@
-﻿/*********************************************************************************
+/*********************************************************************************
     The MIT License (MIT)
 
     Copyright (c) 2022 bernhard.richter@gmail.com
@@ -46,6 +46,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using global::Microsoft.Extensions.DependencyInjection;
+using LightInject;
 
 /// <summary>
 /// Extends the <see cref="IServiceCollection"/> interface.
@@ -129,6 +130,19 @@ public static class DependencyInjectionContainerExtensions
         for (int i = 0; i < registrations.Count; i++)
         {
             ServiceRegistration registration = registrations[i];
+#if NET8_0_OR_GREATER
+            if (registration is KeyedServiceRegistration { IsKeyedService: false } serviceRegistration)
+            {
+                if (servicesThatRequireNamePrefix.TryGetValue(serviceRegistration.ServiceType, out string prefix))
+                {
+                    serviceRegistration.ServiceName = prefix + i.ToString("D8", CultureInfo.InvariantCulture.NumberFormat);
+                }
+                else
+                {
+                    serviceRegistration.ServiceName = i.ToString("D8", CultureInfo.InvariantCulture.NumberFormat);
+                }
+            }
+#else
             if (servicesThatRequireNamePrefix.TryGetValue(registration.ServiceType, out string prefix))
             {
                 registration.ServiceName = prefix + i.ToString("D8", CultureInfo.InvariantCulture.NumberFormat);
@@ -137,12 +151,34 @@ public static class DependencyInjectionContainerExtensions
             {
                 registration.ServiceName = i.ToString("D8", CultureInfo.InvariantCulture.NumberFormat);
             }
+#endif
             container.Register(registration);
         }
     }
 
     private static ServiceRegistration CreateServiceRegistration(ServiceDescriptor serviceDescriptor, Scope rootScope)
     {
+#if NET8_0_OR_GREATER
+        if (serviceDescriptor.IsKeyedService && serviceDescriptor.KeyedImplementationFactory != null)
+        {
+            return CreateServiceRegistrationForFactoryDelegate(serviceDescriptor, rootScope);
+        }
+        else if (!serviceDescriptor.IsKeyedService && serviceDescriptor.ImplementationFactory != null)
+        {
+            return CreateServiceRegistrationForFactoryDelegate(serviceDescriptor, rootScope);
+        }
+
+        if (serviceDescriptor.IsKeyedService && serviceDescriptor.KeyedImplementationInstance != null)
+        {
+            return CreateServiceRegistrationForInstance(serviceDescriptor, rootScope);
+        }
+        else if (!serviceDescriptor.IsKeyedService && serviceDescriptor.ImplementationInstance != null)
+        {
+            return CreateServiceRegistrationForInstance(serviceDescriptor, rootScope);
+        }
+
+        return CreateServiceRegistrationServiceType(serviceDescriptor, rootScope);
+#else
         if (serviceDescriptor.ImplementationFactory != null)
         {
             return CreateServiceRegistrationForFactoryDelegate(serviceDescriptor, rootScope);
@@ -154,20 +190,7 @@ public static class DependencyInjectionContainerExtensions
         }
 
         return CreateServiceRegistrationServiceType(serviceDescriptor, rootScope);
-    }
-
-    private static ServiceRegistration CreateServiceRegistrationServiceType(ServiceDescriptor serviceDescriptor, Scope rootScope)
-    {
-        ServiceRegistration registration = CreateBasicServiceRegistration(serviceDescriptor, rootScope);
-        registration.ImplementingType = serviceDescriptor.ImplementationType;
-        return registration;
-    }
-
-    private static ServiceRegistration CreateServiceRegistrationForInstance(ServiceDescriptor serviceDescriptor, Scope rootScope)
-    {
-        ServiceRegistration registration = CreateBasicServiceRegistration(serviceDescriptor, rootScope);
-        registration.Value = serviceDescriptor.ImplementationInstance;
-        return registration;
+#endif
     }
 
     private static ServiceRegistration CreateServiceRegistrationForFactoryDelegate(ServiceDescriptor serviceDescriptor, Scope rootScope)
@@ -177,14 +200,78 @@ public static class DependencyInjectionContainerExtensions
         return registration;
     }
 
+    private static ServiceRegistration CreateServiceRegistrationForInstance(ServiceDescriptor serviceDescriptor, Scope rootScope)
+    {
+        ServiceRegistration registration = CreateBasicServiceRegistration(serviceDescriptor, rootScope);
+#if NET8_0_OR_GREATER
+        if (serviceDescriptor.IsKeyedService)
+        {
+            registration.Value = serviceDescriptor.KeyedImplementationInstance;
+        }
+        else
+        {
+            registration.Value = serviceDescriptor.ImplementationInstance;
+        }
+#else
+        registration.Value = serviceDescriptor.ImplementationInstance;
+#endif
+        return registration;
+    }
+
+
+    private static ServiceRegistration CreateServiceRegistrationServiceType(ServiceDescriptor serviceDescriptor, Scope rootScope)
+    {
+        ServiceRegistration registration = CreateBasicServiceRegistration(serviceDescriptor, rootScope);
+#if NET8_0_OR_GREATER
+        if (serviceDescriptor.IsKeyedService)
+        {
+            registration.ImplementingType = serviceDescriptor.KeyedImplementationType;
+        }
+        else
+        {
+            registration.ImplementingType = serviceDescriptor.ImplementationType;
+        }
+#else
+        registration.ImplementingType = serviceDescriptor.ImplementationType;
+#endif
+        return registration;
+    }
+
     private static ServiceRegistration CreateBasicServiceRegistration(ServiceDescriptor serviceDescriptor, Scope rootScope)
     {
-        ServiceRegistration registration = new ServiceRegistration
+        ServiceRegistration registration = default;
+#if NET8_0_OR_GREATER
+        registration = new KeyedServiceRegistration
+        {
+            Lifetime = ResolveLifetime(serviceDescriptor, rootScope),
+            ServiceType = serviceDescriptor.ServiceType,
+            IsKeyedService = serviceDescriptor.IsKeyedService,
+        };
+        if (serviceDescriptor.IsKeyedService)
+        {
+            if (serviceDescriptor.ServiceKey != null &&
+                !string.IsNullOrWhiteSpace(serviceDescriptor.ServiceKey.ToString()))
+            {
+                registration.ServiceName = serviceDescriptor.ServiceKey?.ToString();
+            }
+            else
+            {
+                registration.ServiceName = Guid.NewGuid().ToString();
+            }
+        }
+        else
+        {
+            registration.ServiceName = Guid.NewGuid().ToString();
+        }
+#else
+        registration = new ServiceRegistration
         {
             Lifetime = ResolveLifetime(serviceDescriptor, rootScope),
             ServiceType = serviceDescriptor.ServiceType,
             ServiceName = Guid.NewGuid().ToString(),
         };
+#endif
+
         return registration;
     }
 
@@ -214,11 +301,27 @@ public static class DependencyInjectionContainerExtensions
         {
             return true;
         }
-
-        if (serviceDescriptor.ImplementationType != null && !typeof(IDisposable).IsAssignableFrom(serviceDescriptor.ImplementationType))
+#if NET8_0_OR_GREATER
+        if (serviceDescriptor.IsKeyedService
+            && serviceDescriptor.KeyedImplementationType != null
+            && !typeof(IDisposable).IsAssignableFrom(serviceDescriptor.KeyedImplementationType))
         {
             return false;
         }
+
+        if (!serviceDescriptor.IsKeyedService
+            && serviceDescriptor.ImplementationType != null
+            && !typeof(IDisposable).IsAssignableFrom(serviceDescriptor.ImplementationType))
+        {
+            return false;
+        }
+#else
+        if (serviceDescriptor.ImplementationType != null
+            && !typeof(IDisposable).IsAssignableFrom(serviceDescriptor.ImplementationType))
+        {
+            return false;
+        }
+#endif
 
         return true;
     }
@@ -232,7 +335,23 @@ public static class DependencyInjectionContainerExtensions
 
 #pragma warning disable IDE0051
     private static Func<IServiceFactory, T> CreateTypedFactoryDelegate<T>(ServiceDescriptor serviceDescriptor)
-        => serviceFactory => (T)serviceDescriptor.ImplementationFactory(new LightInjectServiceProvider((Scope)serviceFactory));
+#if NET8_0_OR_GREATER
+        => serviceFactory =>
+        {
+            if (serviceDescriptor.IsKeyedService)
+            {
+                return (T)serviceDescriptor.KeyedImplementationFactory(
+                    new LightInjectServiceProvider((Scope)serviceFactory), serviceDescriptor.ServiceKey);
+            }
+            else
+            {
+                return (T)serviceDescriptor.ImplementationFactory(new LightInjectServiceProvider((Scope)serviceFactory));
+            }
+        };
+#else
+ => serviceFactory => (T)serviceDescriptor.ImplementationFactory(new LightInjectServiceProvider((Scope)serviceFactory));
+#endif
+
 #pragma warning restore IDE0051
 }
 
@@ -334,7 +453,9 @@ public class LightInjectServiceProviderFactory : IServiceProviderFactory<IServic
 /// <summary>
 /// An <see cref="IServiceProvider"/> that uses LightInject as the underlying container.
 /// </summary>
-#if USE_ASYNCDISPOSABLE
+#if NET8_0_OR_GREATER
+internal class LightInjectServiceProvider : IKeyedServiceProvider, IServiceProvider, ISupportRequiredService, IDisposable, IAsyncDisposable
+#elif USE_ASYNCDISPOSABLE
 internal class LightInjectServiceProvider : IServiceProvider, ISupportRequiredService, IDisposable, IAsyncDisposable
 #else
 internal class LightInjectServiceProvider : IServiceProvider, ISupportRequiredService, IDisposable
@@ -392,6 +513,24 @@ internal class LightInjectServiceProvider : IServiceProvider, ISupportRequiredSe
     /// <returns>An instance of the given <paramref name="serviceType"/>.</returns>
     public object GetService(Type serviceType)
         => scope.TryGetInstance(serviceType);
+#if NET8_0_OR_GREATER
+    /// <summary>
+    /// Gets an instance of the given <paramref name="serviceType"/>.
+    /// </summary>
+    /// <param name="serviceType">The service type to return.</param>
+    /// <returns>An instance of the given <paramref name="serviceType"/>.
+    /// Throws an exception if it cannot be created.</returns>
+    public object GetKeyedService(Type serviceType, object serviceKey)
+        => scope.TryGetInstance(serviceType, serviceKey?.ToString());
+
+    /// <summary>
+    /// Gets an instance of the given <paramref name="serviceType"/>.
+    /// </summary>
+    /// <param name="serviceType">The service type to return.</param>
+    /// <returns>An instance of the given <paramref name="serviceType"/>.</returns>
+    public object GetRequiredKeyedService(Type serviceType, object serviceKey)
+        => scope.GetInstance(serviceType, serviceKey?.ToString());
+#endif
 }
 
 /// <summary>
@@ -523,3 +662,25 @@ internal class LightInjectIsServiceProviderIsService : IServiceProviderIsService
         return canGetService(serviceType);
     }
 }
+#if NET8_0_OR_GREATER
+/// <summary>
+/// Contains information about a registered service.
+/// </summary>
+internal class KeyedServiceRegistration : ServiceRegistration
+{
+    /// <summary>
+    /// Indicates whether the service is a keyed service.
+    /// </summary>
+    public bool IsKeyedService { get; set; }
+
+    /// <summary>
+    /// Returns a string representation of the <see cref="ServiceRegistration"/>.
+    /// </summary>
+    /// <returns>A string representation of the <see cref="ServiceRegistration"/>.</returns>
+    public override string ToString()
+    {
+        var lifeTime = Lifetime?.ToString() ?? "Transient";
+        return $"ServiceType: '{ServiceType}', ServiceName: '{ServiceName}', ImplementingType: '{ImplementingType}', Lifetime: '{lifeTime}', IsKeyedService: '{IsKeyedService}'";
+    }
+}
+#endif
