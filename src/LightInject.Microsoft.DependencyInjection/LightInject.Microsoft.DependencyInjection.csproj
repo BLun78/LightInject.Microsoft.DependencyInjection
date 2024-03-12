@@ -1,30 +1,78 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFrameworks>net7.0;net6.0;netstandard2.0</TargetFrameworks>
-    <Authors>Bernhard Richter</Authors>
-    <Description>Enables LightInject to be used as the service container in ASP.NET Core and Entity Framework 7 applications.</Description>
-    <Copyright>Bernhard Richter</Copyright>
-    <PackageLicenseUrl>http://opensource.org/licenses/MIT</PackageLicenseUrl>
-    <PackageProjectUrl></PackageProjectUrl>
-    <RepositoryUrl>https://github.com/seesharper/LightInject.Microsoft.DependencyInjection</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageTags>Ioc Dependency-Injection Inversion-of-Control LightInject ASP.NET Entity-Framework</PackageTags>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>portable</DebugType>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <LangVersion>latest</LangVersion>
-    <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="LightInject" Version="6.6.4" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
-    <PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.354">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
-  </ItemGroup>
+	<PropertyGroup>
+		<TargetFrameworks>net8.0;net7.0;net6.0;netstandard2.0;net462;net48;</TargetFrameworks>
+		<Authors>Bernhard Richter</Authors>
+		<Description>Enables LightInject to be used as the service container in ASP.NET Core and Entity Framework 7 applications.</Description>
+		<Copyright>Bernhard Richter</Copyright>
+		<PackageLicenseUrl>http://opensource.org/licenses/MIT</PackageLicenseUrl>
+		<PackageProjectUrl></PackageProjectUrl>
+		<RepositoryUrl>https://github.com/seesharper/LightInject.Microsoft.DependencyInjection</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageTags>Ioc Dependency-Injection Inversion-of-Control LightInject ASP.NET Entity-Framework</PackageTags>
+		<DebugSymbols>true</DebugSymbols>
+		<DebugType>portable</DebugType>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<LangVersion>latest</LangVersion>
+		<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="LightInject" Version="8.0.0" />
+		<PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.354">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'net7.0'">
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'net462'">
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+	</ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+	</ItemGroup>
+	<ItemGroup>
+	  <ProjectReference Include="..\..\..\LightInject\src\LightInject\LightInject.csproj" />
+	</ItemGroup>
+	<Choose>
+		<When Condition=" '$(TargetFramework)'=='netstandard2.0' Or '$(TestTargetFramework)'=='netstandard2.0'">
+			<PropertyGroup>
+				<DefineConstants>USE_EXPRESSIONS</DefineConstants>
+			</PropertyGroup>
+		</When>
+	</Choose>
+	<Choose>
+		<When Condition=" '$(TargetFramework)'=='net6.0' Or '$(TestTargetFramework)'=='net6.0'">
+			<PropertyGroup>
+				<DefineConstants>USE_ASYNCDISPOSABLE</DefineConstants>
+			</PropertyGroup>
+		</When>
+	</Choose>
+	<Choose>
+		<When Condition=" '$(TargetFramework)'=='net7.0' Or '$(TestTargetFramework)'=='net7.0'">
+			<PropertyGroup>
+				<DefineConstants>USE_ASYNCDISPOSABLE</DefineConstants>
+			</PropertyGroup>
+		</When>
+	</Choose>
+	<Choose>
+		<When Condition=" '$(TargetFramework)'=='net8.0' Or '$(TestTargetFramework)'=='net8.0'">
+			<PropertyGroup>
+				<DefineConstants>USE_ASYNCDISPOSABLE</DefineConstants>
+			</PropertyGroup>
+		</When>
+	</Choose>
 </Project>
